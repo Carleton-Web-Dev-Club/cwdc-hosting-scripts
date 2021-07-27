@@ -1,0 +1,27 @@
+#! /bin/bash
+run-cwdc-script () {
+    if [[ $# -le 0 ]]; then
+        echo "Help: run-cwdc-script script-path [script arguments]"
+        return 1;
+    fi
+
+    tmpName="`echo $1 | tr '/' '-'`-$USER" 
+    statusCode=`curl -sL "https://cwdc.scs.carleton.ca/$1" -o /tmp/$tmpName -w "%{http_code}"`
+    retVal=$?
+    if [[ $retVal != 0 || $statusCode != 200 ]]; then
+        echo "Script could not be retrieved"
+        return 1;
+    fi;
+    if ! head -n1 "/tmp/$tmpName" | grep -P "^#" > /dev/null; then
+        #Allow a [@run-cwdc-script: script] comment anywhere in the file to mark it as executable
+        if  ! cat "/tmp/$tmpName" | grep -i '\[@run\-cwdc\-script: script\]'; then
+            echo "That doesn't appear to be a script"
+            return 1
+        fi;
+    fi;
+
+    chmod +x /tmp/$tmpName
+    shift
+    /tmp/$tmpName $@
+    rm /tmp/$tmpName
+}
