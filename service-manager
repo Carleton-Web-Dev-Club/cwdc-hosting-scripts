@@ -1,0 +1,200 @@
+#!/bin/bash
+print_info () {
+    service="[your-service-name-here]"
+cat  << EOF
+Systemd is the init process on many modern linux systems. It starts up all the other proccesses that are needed. It also has the ability to run user defined things, such as services. These configurations are described in something called a unit file.
+
+Generally, these are only for the system admins to run, but there is another feature, called user services. These allow any user to define their own service. These services, in their most basic form, run a single command when they start, which in our case, will be at boot.
+User services are stored in ~/.config/systemd/user, and all end in ".service". You can find services created with this tool in there. More info about services can be found by running "man systemd.service"
+
+To enable (auto start at boot) run systemctl --user enable $service
+To start the service, run systemctl --user start $service
+To restart the service, run systemctl --user restart $service. This is needed after any code changes
+To view the status of the service, and its logs, run systemctl --user status $service
+
+switch "enable" to "disable" to have it not auto start at boot
+switch "start" to "stop" to stop the service
+
+Script developed by Clark Bains. clark.bains@cmail.carleton.ca
+EOF
+    echo
+}
+create_unit () {
+    echo "Creating Unit."
+    while 
+    read -p "Service Name: " service
+    echo "$service" | grep -P "[^A-z\d\.-_]";
+    do
+        echo "Service name must be alphanumeric, and can additionally contain any of these symbols \"._-\""
+    done
+    #Not needed, but forcing a working dir will save headache for those who haven't done a great
+    # job setting up include dirs.
+    while 
+    read -p "Working Dir: " workdir
+    [[ ! -d $workdir || -z $workdir ]]
+    do
+        echo "Please provide a working directory"
+    done
+    cd $workdir
+    workdir=`pwd`
+    read -p "One line description: " description
+    echo "Read the instructions on https://cwdc.scs.carleton.ca/foobar to figure out the correct execStart path"
+    while true; do 
+        while
+        read -p "ExecStart: " execStart
+        [ -z "$execStart" ]
+        do
+            echo "Please provide an ExecStart command"
+        done
+
+        IFS=' ' read -r -a execStartArr <<< "$execStart"
+        fixedProg=${execStartArr[0]}
+
+        # Try to fix if they passed in an interpreter without an absolute path
+        if which ${execStartArr[0]} &> /dev/null ; then
+            fixedProg=`which ${execStartArr[0]}`
+        fi
+
+        # Try to fix if they passed in the relative location of a script or binary
+        if echo "$fixedProg" | grep -P "^\." &> /dev/null; then
+            fixedProg=`realpath ${execStartArr[0]}`
+        fi
+        
+        if [[ ! -f  $fixedProg ]]; then
+            echo "Warn: Could not find program. Likely not put in correctly"
+            edit=""
+            while [[ -z $edit ]]; do
+                read -p "[E]dit ExecStart, [C]ontinue without changing: " choice
+                choice=`echo $choice | tr '[:upper:]' '[:lower:]'`
+                case $choice in
+                    c)
+                        break;
+                        ;;
+                    e)
+                        edit="y"
+                        break;
+                        ;;
+                    *)
+                        ;;
+                esac;
+            done;
+         
+            if [[ ! -z  $edit ]]; then
+                continue
+            fi
+        fi
+        
+        if [[ $fixedProg != ${execStartArr[0]} ]]; then
+            execStartArr[0]=$fixedProg
+            newExecStart=$(IFS=" "; echo "${execStartArr[*]}")
+            echo "Fixed Path. Command would now be: $newExecStart"
+            edit=""
+            while [[ -z $edit ]]; do
+                read -p "[E]dit ExecStart, [A]ccept changes, [C]ontinue without changes: " choice
+                choice=`echo $choice | tr '[:upper:]' '[:lower:]'`
+                case $choice in
+                    c)
+                        break;
+                        ;;
+                    a)
+                        execStart=$newExecStart
+                        break;
+                        ;;
+                    e)
+                        edit="y"
+                        break;
+                        ;;
+                    *)
+                        ;;
+                esac;
+            done;
+         
+            if [[ ! -z  $edit ]]; then
+                continue
+            fi
+        fi
+        break;
+    done;
+    unitFile="/tmp/$USER-${service}-unit"
+cat >$unitFile <<EOF
+[Unit]
+Description=$description
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$execStart
+WorkingDirectory=$workdir
+RestartSec=1
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    echo "Installing..."
+    installFile="$HOME/.config/systemd/user/$service.service"
+    backupFile="$HOME/`date +"%Y-%b-%e-%R:%S"`-$service.service"
+    echo "Backup written to $backupFile"
+    cat $unitFile | sed -E 's/^([^#].*=)$/#\1/g' > $backupFile
+
+    if [[ -f $installFile ]]; 
+    then
+        echo "$installFile already exists. Please rename/delete it, then run"
+        echo "  mv $backupFile $installFile"
+    else
+        cp $backupFile $installFile
+        rm $backupFile
+        echo "Installed to $installFile. Deleted Backup"
+    fi
+
+    echo ""
+    echo "To enable (auto start at boot) run systemctl --user enable $service"
+    echo "To start the service, run systemctl --user start $service"
+    echo "To restart the service, run systemctl --user restart $service. This is needed after any code changes"
+    echo "To view the status of the service, and its logs, run systemctl --user status $service"
+    echo
+}
+print_info;
+echo
+echo
+if [ $SHELL == `which bash` ]; then
+    echo "Please run using bash"
+    exit 1
+fi
+
+if [[ $EUID -eq 0 ]]; then
+   echo "This script should not be run as root" 
+   exit 1
+fi
+
+
+if [ ! -f /var/lib/systemd/linger/$USER ]; then
+    echo "This account has not been setup to allow lingering processes"
+    echo "Ask an admin to run \"loginctl enable-linger $USER\" on `hostname`"
+    exit 1
+fi
+
+if [ ! -d $HOME/.config/systemd/user/ ]; then
+    echo "Creating folder for systemd user unit files"
+    mkdir -p $HOME/.config/systemd/user
+fi
+
+
+while [ true ]; do
+    echo "1) Create Unit File"
+    echo "2) Exit"
+    read selection
+    case $selection in
+        1)
+            create_unit
+            ;;
+        2) 
+            exit 0
+            ;;
+
+        *)
+            ;;
+    esac
+
+done
+
