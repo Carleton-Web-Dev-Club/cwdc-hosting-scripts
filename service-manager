@@ -151,7 +151,8 @@ EOF
     echo "To enable (auto start at boot) run systemctl --user enable $service"
     echo "To start the service, run systemctl --user start $service"
     echo "To restart the service, run systemctl --user restart $service. This is needed after any code changes"
-    echo "To view the status of the service, and its logs, run systemctl --user status $service"
+    echo "To view the status of the service, run systemctl --user status $service"
+    echo "To trail the logs, run journalctl --user -xefu $service"
     echo
 }
 print_info;
