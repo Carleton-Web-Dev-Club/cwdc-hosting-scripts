@@ -176,10 +176,10 @@ if [ ! -f /var/lib/systemd/linger/$USER ]; then
     exit 1
 fi
 
-if [ ! -d $HOME/.config/systemd/user/ ]; then
-    echo "Creating folder for systemd user unit files"
+#if [ ! -d $HOME/.config/systemd/user/ ]; then
+#    echo "Creating folder for systemd user unit files"
     mkdir -p $HOME/.config/systemd/user
-fi
+#fi
 
 
 create_unit
