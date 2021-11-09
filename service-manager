@@ -167,7 +167,9 @@ if [[ $EUID -eq 0 ]]; then
    exit 1
 fi
 
-
+# Might as well try?
+loginctl enable-linger $USER 2> /dev/null
+ 
 if [ ! -f /var/lib/systemd/linger/$USER ]; then
     echo "This account has not been setup to allow lingering processes"
     echo "Ask an admin to run \"loginctl enable-linger $USER\" on `hostname`"
@@ -180,21 +182,7 @@ if [ ! -d $HOME/.config/systemd/user/ ]; then
 fi
 
 
-while [ true ]; do
-    echo "1) Create Unit File"
-    echo "2) Exit"
-    read selection
-    case $selection in
-        1)
-            create_unit
-            ;;
-        2) 
-            exit 0
-            ;;
-
-        *)
-            ;;
-    esac
+create_unit
 
 done
 
