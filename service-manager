@@ -133,7 +133,7 @@ WantedBy=multi-user.target
 EOF
     echo "Installing..."
     installFile="$HOME/.config/systemd/user/$service.service"
-    backupFile="$HOME/`date +"%Y-%b-%e-%R:%S"`-$service.service"
+    backupFile="$HOME/`date +"%Y-%b-%e-%R:%S" | tr -d ' '`-$service.service"
     echo "Backup written to $backupFile"
     cat $unitFile | sed -E 's/^([^#].*=)$/#\1/g' > $backupFile
 
